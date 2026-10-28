@@ -6,7 +6,7 @@ type: software
 authors:
   - name: "Dawnwood, Inc."
     website: "https://dawnwood.ai"
-version: 0.1.0
+version: 0.2.0
 date-released: 2026-10-27
 repository-code: "https://github.com/dawnwood-ai/dramapack"
 url: "https://dawnwood.ai/open-source/"

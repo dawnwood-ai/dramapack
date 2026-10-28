@@ -1,6 +1,6 @@
 ---
 name: dramapack
-description: Build short-drama delivery packs and master episodes with dramapack. Use when the user wants a delivery pack / delivery package / submission pack for a short drama, vertical drama, micro drama or AI drama (TikTok Drama Center submission, DramaWave, ReelShort, DramaBox, GoodShort), to master episodes, fix loudness (-14 LUFS, "too quiet on phones"), burn subtitles inside the subtitle safe area / clear of the player bar, make a clean master (no subtitles / textless), make 3:4 covers, audit finished episodes, or check music and font rights before distribution.
+description: Build short-drama delivery packs and master episodes with dramapack. Use when the user wants a delivery pack / delivery package / submission pack for a short drama, vertical drama, micro drama or AI drama (TikTok Drama Center submission, DramaWave, ReelShort, DramaBox, GoodShort), to master episodes, fix loudness (-14 LUFS, "too quiet on phones"), burn subtitles inside the subtitle safe area / clear of the player bar, make a clean master (no subtitles / textless), make 3:4 covers, audit / QC finished episodes (black frames, subtitle sync with speech, subtitle typos, AI visual defects, content-policy flags), or check music and font rights before distribution.
 ---
 
 # dramapack: short-drama delivery
@@ -31,7 +31,12 @@ If neither is available: `pip install dramapack`
    edit, do not ship") and `rights_status`. Notes like "cover generated from a video frame"
    mean real key art is missing.
 5. **Audit.** For each episode: `dramapack audit OUT/episodes/NN.mp4 --cut INPUT/NN.mp4
-   --json`. Report red metrics (e.g. duration under 60 s fails TikTok Creator Rewards).
+   --json`. Report red metrics (e.g. duration under 60 s fails TikTok Creator Rewards,
+   mid-episode black frames, subtitles drifting from the speech). Subtitle alignment
+   needs `pip install "dramapack[speech]"`; it uses the same-name `.srt` next to the
+   master. Only add `--vlm` (MCP `vlm: true`) if the user has set `DRAMAPACK_VLM_*` and
+   agrees to send sampled frames to that endpoint; otherwise it is skipped. Treat VLM
+   policy flags as "review", not a verdict. Lip-sync is not checked: say so if asked.
 6. **Hand over.** Give the user the pack path and `manifest.json`. Tell them
    `docs/CHAIN-OF-TITLE.md` must be filled in and signed by a person, and that
    `docs/AI-DISCLOSURE.md` should be reviewed. Never sign or fill legal fields yourself.

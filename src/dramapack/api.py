@@ -6,6 +6,7 @@ the same result shape. Every result has ``"ok"`` and, where grading applies, a
 """
 import os
 import shutil
+import sys
 import tempfile
 
 from . import master as M
@@ -113,26 +114,74 @@ def build_package(input_dir: str, output_dir: str, *, show: str | None = None,
             "generator": man["generator"]}
 
 
+def _sibling_srt(path: str) -> str | None:
+    p = os.path.splitext(path)[0] + ".srt"
+    return p if os.path.exists(p) else None
+
+
 def audit_files(files, *, cut: str | None = None, bounds=None, speech: bool = True,
-                hook_plugin: str | None = None) -> dict:
-    """Grade files against short-drama benchmarks."""
+                hook_plugin: str | None = None, srt: str | None = None, align: bool = True,
+                srt_lang: str | None = None, vlm: bool = False,
+                vlm_max_frames: int = 12, transcriber=None, log=None) -> dict:
+    """Grade files against short-drama benchmarks.
+
+    ``align``: compare each file's subtitles (``srt``, or a same-name ``.srt`` next to the
+    file) with the speech (needs ``dramapack[speech]`` or an injected ``transcriber``).
+    ``vlm``: vision-model checks; also needs the ``DRAMAPACK_VLM_*`` environment variables
+    (see ``vlm.py``). Without them nothing is sent anywhere and ``skipped`` says why."""
     _require_ffmpeg()
     from . import audit as A
+    from . import vlm as V
+    log = log or (lambda *a: print(*a, file=sys.stderr, flush=True))
     files = [_abs(f) for f in ([files] if isinstance(files, str) else files)]
+    if srt and len(files) != 1:
+        raise ValueError("srt pairs with exactly one file; for several, put NN.srt next to NN.mp4")
     hook = A.load_hook_plugin(hook_plugin) if hook_plugin else None
     skipped = []
-    if speech and not A.have_speech():
+    can_transcribe = transcriber is not None or A.have_speech()
+    if not speech:
+        align = False             # speech=False means: no transcription at all
+    if speech and not can_transcribe:
         speech = False
         skipped.append("speech metrics (pip install 'dramapack[speech]')")
+    srts = {}
+    if align:
+        for f in files:
+            s = _abs(srt) if srt else _sibling_srt(f)
+            if s:
+                srts[f] = s
+        if not srts:
+            skipped.append("subtitle alignment (no .srt next to the file; pass srt)")
+        elif not can_transcribe:
+            skipped.append("subtitle alignment (pip install 'dramapack[speech]')")
+            srts = {}
+    vlm_cfg, vlm_plan = None, None
+    if vlm:
+        vlm_cfg, msg = V.config_from_env()
+        if vlm_cfg is None:
+            skipped.append(msg)
+            log(msg)
+        else:
+            max_frames = max(1, int(vlm_max_frames))
+            vlm_plan = V.plan(len(files), max_frames)
+            log(f"{msg}: {vlm_plan['requests']} requests, up to {max_frames} frames per "
+                f"file, {len(files)} file(s)")
+    kw = dict(do_speech=speech, bounds=bounds, hook_plugin=hook, srt_lang=srt_lang,
+              transcriber=transcriber, vlm_cfg=vlm_cfg, vlm_max_frames=vlm_max_frames,
+              log=log)
     if cut:
         if len(files) != 1:
             raise ValueError("cut pairs with exactly one master file")
-        rows = A.audit_pair(files[0], _abs(cut), do_speech=speech, bounds=bounds, hook_plugin=hook)
+        rows = A.audit_pair(files[0], _abs(cut), srt=srts.get(files[0]), **kw)
     else:
-        rows = [A.audit(p, do_speech=speech, bounds=bounds, hook_plugin=hook) for p in files]
+        rows = [A.audit(p, srt=srts.get(p), **kw) for p in files]
     status = worst(g for r in rows for g in r["grades"].values())
-    return {"ok": True, "status": status, "rows": rows, "skipped": skipped,
-            "thresholds": {k: {"green": v[0], "red": v[1]} for k, v in A.T.items()}}
+    res = {"ok": True, "status": status, "rows": rows, "skipped": skipped,
+           "thresholds": {k: {"green": v[0], "red": v[1]} for k, v in A.T.items()}}
+    if vlm_plan:
+        res["vlm"] = {"model": vlm_cfg["model"],
+                      "base_url": V.scrub(vlm_cfg["base_url"], vlm_cfg["api_key"]), **vlm_plan}
+    return res
 
 
 def check_rights(rights: str | None = None, *, input_dir: str | None = None,

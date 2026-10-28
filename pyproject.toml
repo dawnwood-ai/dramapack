@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dramapack"
-version = "0.1.0"
-description = "Delivery packages, -14 LUFS mastering, subtitle safe areas, clean masters, acceptance audits and rights checks for short dramas (vertical / micro / AI dramas). CLI + MCP server."
+version = "0.2.0"
+description = "Delivery packages, -14 LUFS mastering, subtitle safe areas, clean masters, local QC (black frames, subtitle/speech alignment, optional BYO-key vision checks) and rights checks for short dramas (vertical / micro / AI dramas). CLI + MCP server."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -15,7 +15,8 @@ keywords = [
     "short drama", "vertical drama", "micro drama", "AI drama", "short-form video",
     "delivery package", "TikTok Drama Center", "DramaWave", "ReelShort",
     "loudness", "LUFS", "mastering", "subtitles", "burned subtitles", "safe area",
-    "clean master", "ffmpeg", "MCP", "model context protocol", "AI agent",
+    "clean master", "quality control", "QC", "black frames", "subtitle sync", "ffmpeg",
+    "MCP", "model context protocol", "AI agent",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

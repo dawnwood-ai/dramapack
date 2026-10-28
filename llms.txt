@@ -1,6 +1,6 @@
 # dramapack
 
-> dramapack is an open-source (Apache-2.0) Python CLI and MCP server by Dawnwood that turns short-drama episodes (vertical dramas, micro dramas, AI dramas) into platform-ready delivery packages: TikTok Drama Center / DramaWave / ReelShort submission packs, -14 LUFS constant-gain mastering, burned subtitles inside the subtitle safe area, clean masters, 3:4 covers, acceptance audits against market benchmarks, and music/font rights checks.
+> dramapack is an open-source (Apache-2.0) Python CLI and MCP server by Dawnwood that turns short-drama episodes (vertical dramas, micro dramas, AI dramas) into platform-ready delivery packages: TikTok Drama Center / DramaWave / ReelShort submission packs, -14 LUFS constant-gain mastering, burned subtitles inside the subtitle safe area, clean masters, 3:4 covers, local QC (acceptance audits against market benchmarks, black-frame detection, subtitle/speech alignment, optional bring-your-own-key or local vision-model checks for AI visual defects and content-policy flags), and music/font rights checks.
 
 Install: `pip install dramapack` (needs ffmpeg). Agents: `claude mcp add dramapack -- dramapack mcp`, tools `inspect`, `master`, `package`, `audit`, `check_rights`. CLI subcommands take `--json`; exit codes 0 ok, 1 red, 2 usage, 3 failure.
 
@@ -12,16 +12,18 @@ Install: `pip install dramapack` (needs ffmpeg). Agents: `claude mcp add dramapa
 - [Keeping burned subtitles inside the safe area](https://github.com/dawnwood-ai/dramapack/blob/main/docs/subtitle-safe-area.md): 18% bottom / 16% side margins, ASS PlayRes pitfall
 - [What is a clean master](https://github.com/dawnwood-ai/dramapack/blob/main/docs/clean-master.md): textless master, same edit as the subtitled one
 - [Music and font rights checklist](https://github.com/dawnwood-ai/dramapack/blob/main/docs/music-font-rights-checklist.md): major labels, public domain, licences, commercial-free fonts
+- [How to QC a short drama locally before delivery](https://github.com/dawnwood-ai/dramapack/blob/main/docs/short-drama-qc-local.md): black frames, subtitle/speech alignment, BYO-key or local vision checks, comparison with cloud QC services; lip-sync not covered
 - [Using dramapack from an AI agent (MCP)](https://github.com/dawnwood-ai/dramapack/blob/main/docs/ai-agent-mcp.md): MCP server, tools, JSON CLI, Claude Code plugin
 
 ## Reference
 
 - [Reference](https://github.com/dawnwood-ai/dramapack/blob/main/docs/reference.md): input folder, show.json, timeline JSON, rights.json, CLI flags, JSON shapes, exit codes, audit thresholds
+- [CHANGELOG](https://github.com/dawnwood-ai/dramapack/blob/main/CHANGELOG.md): release notes
 - [AGENTS.md](https://github.com/dawnwood-ai/dramapack/blob/main/AGENTS.md): how to develop on the repo and the invariants to keep
 - [Example input](https://github.com/dawnwood-ai/dramapack/tree/main/examples/input): show.json, rights.json, timeline JSON
 
 ## Optional
 
 - [Chinese README](https://github.com/dawnwood-ai/dramapack/blob/main/README.zh-CN.md): README in Chinese
-- [Chinese guides](https://github.com/dawnwood-ai/dramapack/tree/main/docs/zh): delivery package, loudness, rights checklist in Chinese
+- [Chinese guides](https://github.com/dawnwood-ai/dramapack/tree/main/docs/zh): delivery package, loudness, rights checklist, local QC in Chinese
 - [Dawnwood](https://dawnwood.ai/open-source/): the AI drama studio that builds and uses dramapack

@@ -42,14 +42,19 @@ ffmpeg (with libass and libx264) must be on the server's `PATH`, or set
 | `inspect` | no | duration, resolution, fps, integrated LUFS, true peak, gain to -14 LUFS |
 | `master` | yes | one episode: burned subtitles in the safe area, -14 LUFS, optional bed / head trim / end card; `burn=false` for a clean master |
 | `package` | yes | full delivery pack from an input folder; returns status, gaps and file paths |
-| `audit` | no | green/yellow/red against short-drama benchmarks; pass the raw `cut` with one master |
+| `audit` | no | green/yellow/red QC: benchmarks, black frames, subtitle/speech alignment (`align`, `srt`), optional vision checks (`vlm`); pass the raw `cut` with one master |
 | `check_rights` | no | music sources, major labels, fonts |
 
 Use **absolute paths**; relative paths resolve against the server's working directory.
 `package` runs two encodes per episode and can take minutes for a series.
 
 The audit's `--hook-plugin` (which imports Python by name) is CLI-only on purpose: an
-agent-supplied string should never trigger an import.
+agent-supplied string should never trigger an import. `vlm=true` is exposed because the
+endpoint and key come only from the server's environment (`DRAMAPACK_VLM_*`): an agent
+can switch the checks on, not redirect them. Without those variables `vlm` is skipped with
+a message. Set them in the MCP server config, e.g.
+`claude mcp add dramapack -e DRAMAPACK_VLM_BASE_URL=http://localhost:11434/v1 -e DRAMAPACK_VLM_API_KEY=ollama -e DRAMAPACK_VLM_MODEL=qwen3-vl:8b -- dramapack mcp`.
+See [short-drama-qc-local.md](short-drama-qc-local.md).
 
 ## Suggested agent workflow
 

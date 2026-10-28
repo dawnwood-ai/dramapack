@@ -8,7 +8,9 @@ returns a JSON object with ``ok`` and, where grading applies, ``status``
 pass absolute paths. Progress logs go to stderr — stdout is the protocol channel.
 
 The audit's hook-check plugin is deliberately **not** exposed here: it imports arbitrary
-Python by name, which an agent-supplied string should never be able to trigger.
+Python by name, which an agent-supplied string should never be able to trigger. The VLM
+checks are: the endpoint and key come only from the server's environment, never from
+tool arguments, so an agent can switch them on but not point them anywhere.
 """
 from typing import Any
 
@@ -30,7 +32,9 @@ Typical workflow for a platform submission (e.g. TikTok Drama Center, DramaWave,
 2. package the input folder (01.mp4, 01.srt, ... + optional show.json / rights.json):
    burns subtitles inside the safe area, normalises to -14 LUFS, builds clean masters,
    3:4 covers, docs and manifest.json.
-3. audit the delivered episodes (pass the raw cut as `cut` to grade cut and master separately).
+3. audit the delivered episodes (pass the raw cut as `cut` to grade cut and master separately):
+   black frames, pacing, loudness, subtitle/speech alignment; vlm=true adds vision-model
+   checks when the user configured DRAMAPACK_VLM_* (their own key or a local model).
 Use inspect to measure any file (duration, resolution, integrated LUFS, true peak).
 Long encodes can take minutes per episode. Use absolute paths."""
 
@@ -42,6 +46,9 @@ except TypeError:  # mcp 1.x FastMCP has no version / website_url
 
 _RO = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True,
                       openWorldHint=False)
+# audit may reach the user's own VLM endpoint when vlm=true and the env is configured.
+_AUDIT = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True,
+                         openWorldHint=True)
 _WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True,
                          openWorldHint=False)
 
@@ -103,16 +110,29 @@ def package_tool(input_dir: str, output_dir: str, title: str | None = None,
                              timeline=timeline)
 
 
-@mcp.tool(name="audit", annotations=_RO, description=(
-    "Acceptance audit: grade finished short-drama episodes green/yellow/red against "
+@mcp.tool(name="audit", annotations=_AUDIT, description=(
+    "Acceptance QC: grade finished short-drama episodes green/yellow/red against "
     "market benchmarks - duration (TikTok Creator Rewards needs > 60 s), average shot "
     "length, long-shot share, mean volume, seam level jumps (give splice points in "
-    "`bounds`), frozen tail / end-card length, and dialogue density when faster-whisper "
-    "is installed. Pass exactly one master in `files` plus its raw `cut` to grade the cut "
-    "on pacing/speech/seams and the master on duration/first line/tail. Read-only."))
+    "`bounds`), frozen tail / end-card length, black frames (mid-episode black >= 0.5 s "
+    "is red), and with faster-whisper installed: dialogue density (`speech`) and "
+    "subtitle-to-speech alignment (`align`: cue offsets, cues with no speech, speech "
+    "with no cue, likely typos when subtitles are in the spoken language; uses `srt` or "
+    "the same-name .srt next to the file; speech=false disables both). Pass exactly one "
+    "master in `files` plus its "
+    "raw `cut` to grade the cut on pacing/speech/seams and the master on duration/first "
+    "line/tail/subtitles. `vlm=true` adds vision-model checks on sampled frames (visual "
+    "defects, platform-policy flags, first-frame hook) ONLY if the server's environment "
+    "sets DRAMAPACK_VLM_BASE_URL / DRAMAPACK_VLM_API_KEY / DRAMAPACK_VLM_MODEL; frames "
+    "then go to that endpoint (it may be a local model). Otherwise no network access. "
+    "Lip-sync is not checked. Does not modify files."))
 def audit_tool(files: list[str], cut: str | None = None, bounds: list[float] | None = None,
-               speech: bool = True) -> dict[str, Any]:
-    return api.audit_files(files, cut=cut, bounds=bounds, speech=speech)
+               speech: bool = True, align: bool = True, srt: str | None = None,
+               srt_lang: str | None = None, vlm: bool = False,
+               vlm_max_frames: int = 12) -> dict[str, Any]:
+    return api.audit_files(files, cut=cut, bounds=bounds, speech=speech, align=align,
+                           srt=srt, srt_lang=srt_lang, vlm=vlm,
+                           vlm_max_frames=vlm_max_frames)
 
 
 @mcp.tool(name="check_rights", annotations=_RO, description=(

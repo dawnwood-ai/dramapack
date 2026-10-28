@@ -69,7 +69,8 @@ def _cmd_audit(a) -> int:
     from .audit import format_table
     bounds = [float(x) for x in a.bounds.split(",")] if a.bounds else None
     res = api.audit_files(a.files, cut=a.cut, bounds=bounds, speech=not a.no_speech,
-                          hook_plugin=a.hook_plugin)
+                          hook_plugin=a.hook_plugin, srt=a.srt, align=not a.no_align,
+                          srt_lang=a.srt_lang, vlm=a.vlm, vlm_max_frames=a.vlm_max_frames)
 
     def human(r):
         for s in r["skipped"]:
@@ -169,9 +170,20 @@ def build_parser() -> argparse.ArgumentParser:
     u.add_argument("files", nargs="+")
     u.add_argument("--cut", help="raw cut of the (single) master: grade each on its own metrics")
     u.add_argument("--bounds", help="splice points in seconds, comma-separated (seam metric)")
-    u.add_argument("--no-speech", action="store_true", help="skip faster-whisper metrics")
+    u.add_argument("--no-speech", action="store_true", help="skip faster-whisper entirely (speech metrics and subtitle alignment)")
     u.add_argument("--hook-plugin", metavar="MODULE:FUNC",
                    help="optional hook-window checker f(path, ffmpeg) -> {fails, warns, note}")
+    u.add_argument("--srt", help="subtitles of the (single) file for alignment "
+                                 "(default: same-name .srt next to each file)")
+    u.add_argument("--srt-lang", help="subtitle language code (enables the text check "
+                                      "when it matches the audio)")
+    u.add_argument("--no-align", action="store_true",
+                   help="skip subtitle/speech alignment")
+    u.add_argument("--vlm", action="store_true",
+                   help="vision-model checks with your own endpoint: needs DRAMAPACK_VLM_BASE_URL, "
+                        "DRAMAPACK_VLM_API_KEY, DRAMAPACK_VLM_MODEL (sends sampled frames there)")
+    u.add_argument("--vlm-max-frames", type=int, default=12,
+                   help="cap on frames sampled per file for --vlm (default 12)")
     u.set_defaults(func=_cmd_audit)
 
     r = add("check-rights", help="grade declared music and fonts red/yellow/green")

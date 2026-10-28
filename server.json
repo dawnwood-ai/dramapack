@@ -8,21 +8,54 @@
     "url": "https://github.com/dawnwood-ai/dramapack",
     "source": "github"
   },
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "dramapack",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "runtimeHint": "uvx",
-      "transport": {"type": "stdio"},
+      "transport": {
+        "type": "stdio"
+      },
       "packageArguments": [
-        {"type": "positional", "value": "mcp"}
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
       ],
       "environmentVariables": [
-        {"name": "DRAMAPACK_FFMPEG", "description": "Path to ffmpeg (default: ffmpeg on PATH)", "isRequired": false, "isSecret": false},
-        {"name": "DRAMAPACK_FFPROBE", "description": "Path to ffprobe (default: ffprobe on PATH)", "isRequired": false, "isSecret": false}
+        {
+          "name": "DRAMAPACK_FFMPEG",
+          "description": "Path to ffmpeg (default: ffmpeg on PATH)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "DRAMAPACK_FFPROBE",
+          "description": "Path to ffprobe (default: ffprobe on PATH)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "DRAMAPACK_VLM_BASE_URL",
+          "description": "Optional: OpenAI-compatible base URL for audit vlm checks (your provider or a local model)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "DRAMAPACK_VLM_API_KEY",
+          "description": "Optional: API key for that endpoint (any non-empty string for local servers)",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "DRAMAPACK_VLM_MODEL",
+          "description": "Optional: vision-capable model name for audit vlm checks",
+          "isRequired": false,
+          "isSecret": false
+        }
       ]
     }
   ]

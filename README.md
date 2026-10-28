@@ -7,8 +7,9 @@
 **dramapack turns short-drama episodes (vertical dramas, micro dramas, AI dramas) into a
 platform-ready delivery package — TikTok Drama Center / DramaWave / ReelShort submission
 pack, -14 LUFS mastering, burned subtitles inside the subtitle safe area, clean masters,
-3:4 covers, acceptance audit and music/font rights check — from the command line or as an
-MCP server for AI agents.**
+3:4 covers, local QC (black frames, subtitle/speech alignment, optional bring-your-own
+vision-model checks) and music/font rights check — from the command line or as an MCP
+server for AI agents.**
 
 [Read in Chinese](README.zh-CN.md) · [Docs](docs/README.md) · [Reference](docs/reference.md)
 
@@ -32,6 +33,11 @@ wrong for every short-drama studio:
   → [clean master guide](docs/clean-master.md)
 - **Rights hygiene**: no major-label music, commercial-free fonts only.
   → [rights checklist](docs/music-font-rights-checklist.md)
+- **QC before upload**: black frames mid-episode, subtitles that drift from the speech,
+  speech nobody subtitled, likely subtitle typos; optionally AI visual defects (hands,
+  faces, identity drift, garbled text) and content-policy flags with your own vision model
+  or a local one. Free, local, no account; no network calls unless you opt in. Lip-sync is
+  not covered. → [local QC guide](docs/short-drama-qc-local.md)
 
 ## Install
 
@@ -44,7 +50,8 @@ pip install dramapack
 uvx dramapack --help
 ```
 
-Optional dialogue-density metrics: `pip install "dramapack[speech]"`.
+Optional dialogue-density metrics and subtitle/speech alignment:
+`pip install "dramapack[speech]"`.
 
 ## 60-second quickstart
 
@@ -52,7 +59,7 @@ Optional dialogue-density metrics: `pip install "dramapack[speech]"`.
 # input/ holds 01.mp4 02.mp4 ... (un-subtitled cuts) and 01.srt 02.srt ...
 dramapack check-rights --input input/          # music + fonts: fix red first
 dramapack package input/ out/ --title "My Show" --studio "My Studio" --bed tension
-dramapack audit out/episodes/01.mp4 --cut input/01.mp4
+dramapack audit out/episodes/01.mp4 --cut input/01.mp4   # QC: black, subtitles, pacing
 dramapack inspect out/episodes/01.mp4          # LUFS, true peak, specs
 ```
 
@@ -81,6 +88,7 @@ are stable (0 ok, 1 red, 2 usage, 3 failure). The repo doubles as a Claude Code 
 - [Keeping burned subtitles inside the safe area](docs/subtitle-safe-area.md)
 - [What is a clean master and why distributors ask for it](docs/clean-master.md)
 - [Music and font rights checklist for overseas short dramas](docs/music-font-rights-checklist.md)
+- [How to QC a short drama locally before delivery](docs/short-drama-qc-local.md)
 - [Using dramapack from an AI agent (MCP)](docs/ai-agent-mcp.md)
 - [Reference: input formats, CLI, JSON, exit codes, thresholds](docs/reference.md)
 

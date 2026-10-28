@@ -137,6 +137,7 @@ dramapack package INPUT_DIR OUTPUT_DIR [--show show.json] [--rights rights.json]
     [--no-clean] [--no-covers] [--no-timeline] [--keep-work] [--strict] [--json]
 
 dramapack audit FILE... [--cut RAW.mp4] [--bounds 3.2,7.9] [--no-speech]
+    [--srt S.srt] [--srt-lang xx] [--no-align] [--vlm] [--vlm-max-frames 12]
     [--hook-plugin module:function] [--json]
 
 dramapack check-rights [rights.json] [--input DIR] [--bed MOOD] [--music FILE]
@@ -149,13 +150,22 @@ dramapack mcp          # MCP server on stdio
 
 - `master --cover-band 0.2` blurs the bottom 20% first, for re-subtitling footage that
   already has burned-in subtitles.
-- `audit --cut`: the raw cut is graded on pacing / speech / seams, the master only on
-  duration, first line, frozen tail and hook. A music bed hides seams and confuses speech
+- `audit --cut`: the raw cut is graded on pacing / speech / seams, the master on
+  duration, first line, frozen tail, black frames, subtitle alignment, hook and VLM checks
+  (black frames are graded on both). A music bed hides seams and confuses speech
   detection, so grading those on the master gives false reds.
+- `audit` subtitle alignment (needs the `[speech]` extra): uses `--srt` (single file) or
+  the same-name `.srt` next to each file; `--no-align` turns it off, `--no-speech` turns
+  off whisper entirely. `--srt-lang` states the subtitle language; the text check runs
+  only when it matches the audio (CJK is detected from the script, Latin-script
+  translations are recognised by low similarity).
+- `audit --vlm`: vision-model checks on sampled frames with your own OpenAI-compatible
+  endpoint (`DRAMAPACK_VLM_*` below); without those variables they are skipped with a
+  message. `--vlm-max-frames` caps frames per file (default 12). See
+  [short-drama-qc-local.md](short-drama-qc-local.md). Lip-sync is not checked.
 - `audit --hook-plugin` (CLI only, off by default): your function
-  `f(path, ffmpeg_exe) -> {"fails": [...], "warns": [...], "note": "..."}`, e.g. a
-  vision-model check that the first frame shows a person. dramapack itself needs no model,
-  network access or API key.
+  `f(path, ffmpeg_exe) -> {"fails": [...], "warns": [...], "note": "..."}`. Without
+  `--vlm` (and its environment) dramapack needs no model, network access or API key.
 
 ### Exit codes
 
@@ -174,7 +184,15 @@ All results have `"ok": true` on success.
 - `package`: `status`, `output_dir`, `manifest`, `rights_status`, `rights_summary`, `gaps`,
   `notes`, `episodes[].files.{episode,srt,clean_master,cover,timeline,timeline_ui}` (absolute
   paths), `platform`, `generator`
-- `audit`: `status`, `rows[]` (metrics + `grades` + `red`), `skipped`, `thresholds`
+- `audit`: `status`, `rows[]` (metrics + `grades` + `red`), `skipped`, `thresholds`, and
+  `vlm` (`model`, `base_url`, `requests`, `max_frames_per_file`) when VLM checks ran.
+  Row detail fields: `black`, `black_segments[]` (`start`, `end`, `dur`, `where`
+  head/tail/mid, `level`); `srt`, `sub_drift`, `sub_drift_signed` (+ = subtitles late),
+  `sub_offset_p90`, `sub_orphan_share`, `sub_uncovered_s`, `sub_orphans[]`,
+  `sub_uncovered[]`, `sub_late_early[]`, `sub_text`, `sub_text_flags[]`, `sub_text_note`;
+  `vlm_visual` / `vlm_compliance` / `vlm_hook` (levels), `vlm_*_answers`,
+  `vlm_findings[]` (`check`, `item`, `answer`, `level`, `frame`, `t`, `note`),
+  `vlm_frames`, `vlm_errors[]`, `vlm_hook_note`
 - `check-rights`: `status`, `summary`, `findings[]` (`level`, `kind`, `item`, `message`), `rights_path`
 - `inspect`: `path`, `duration_s`, `width`, `height`, `fps`, `audio`, `bytes`,
   `integrated_lufs`, `true_peak_dbtp`, `loudness_range_lu`, `loudness_gain_to_target_db`
@@ -193,6 +211,15 @@ All results have `"ok": true` on success.
 | `seam_db` | <= 6 dB | > 15 dB | level jump at splice points |
 | `first_speech` | <= 1.5 s | > 3.0 s | the hook line should land immediately |
 | `tail_static` | <= 5 s | > 6.5 s | long static end cards crush completion |
+| `black` | no mid-episode black; head/tail <= 1 s | mid-episode black >= 0.5 s | a render gap or failed clip; shorter mid black or longer edge black is yellow |
+| `sub_drift` | <= 0.3 s | > 0.8 s | median cue start offset vs speech (head trim not applied to the SRT) |
+| `sub_offset_p90` | <= 0.5 s | > 1.0 s | a few badly timed cues |
+| `sub_orphan_share` | <= 0.05 | > 0.20 | cues with no speech under them (SFX cues exempt) |
+| `sub_uncovered_s` | <= 1.5 s | > 4.0 s | dialogue no cue covers |
+| `sub_text` | 0 | never red | cues with line similarity < 0.6 to the heard words, or a word 1-2 letters off the heard word (yellow) |
+| `vlm_visual` | no finding | anatomy / garbled text / identity drift | artifacts are yellow |
+| `vlm_compliance` | all `none` | any `explicit` | `mild` is yellow; flags, not legal advice |
+| `vlm_hook` | person visible, text legible | never red | advice |
 
 ## Environment
 
@@ -200,7 +227,11 @@ All results have `"ok": true` on success.
 |---|---|
 | `DRAMAPACK_FFMPEG` / `DRAMAPACK_FFPROBE` | ffmpeg / ffprobe binaries (default: from `PATH`) |
 | `DRAMAPACK_FONTSDIR` | font directory for libass |
-| `DRAMAPACK_WHISPER_MODEL` | faster-whisper model for speech metrics (default `base`) |
+| `DRAMAPACK_WHISPER_MODEL` | faster-whisper model for speech metrics and alignment (default `base`) |
+| `DRAMAPACK_VLM_BASE_URL` | OpenAI-compatible base URL for `audit --vlm` |
+| `DRAMAPACK_VLM_API_KEY` | key for that endpoint (any non-empty string for local servers); never logged |
+| `DRAMAPACK_VLM_MODEL` | vision-capable model name |
+| `DRAMAPACK_VLM_TIMEOUT` / `DRAMAPACK_VLM_RETRIES` | seconds per request (120) / retries on 429, 5xx, network errors (2) |
 
 ## Python API
 
@@ -211,8 +242,11 @@ api.inspect_file("ep01.mp4")
 api.master_episode("cut01.mp4", "ep01.mp4", srt="01.srt", bed="suspense")
 api.build_package("input/", "out/", title="My Show", platform_pairs=True)
 api.audit_files(["out/episodes/01.mp4"], cut="input/01.mp4", speech=False)
+api.audit_files(["ep01.mp4"], srt="ep01.srt", vlm=True, vlm_max_frames=8,
+                transcriber=my_asr)   # optional: f(path) -> transcript, see dramapack.align
 api.check_rights("input/rights.json", input_dir="input/")
 ```
 
 Lower-level building blocks live in `dramapack.master`, `dramapack.package`,
-`dramapack.audit`, `dramapack.rights` and `dramapack.srt`.
+`dramapack.audit`, `dramapack.align`, `dramapack.vlm`, `dramapack.rights` and
+`dramapack.srt`.
