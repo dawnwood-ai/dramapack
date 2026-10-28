@@ -1,0 +1,9 @@
+{
+  "music": [
+    {"cue": "Stingers", "episodes": ["01"], "source": "generated", "tool": "your AI music tool"},
+    {"cue": "Ep 1 waltz", "episodes": ["01"], "source": "public_domain", "title": "Waltz in A minor", "year": 1890, "notes": "own performance"}
+  ],
+  "fonts": [
+    {"name": "Noto Sans CJK SC", "license": "OFL-1.1"}
+  ]
+}

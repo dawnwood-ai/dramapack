@@ -1,0 +1,15 @@
+{
+  "title": "The Last Ferry",
+  "studio": "Example Studio",
+  "language": "en",
+  "tagline": "One crossing left. Two people who can't both reach the shore.",
+  "production_year": 2026,
+  "rights_holder": "",
+  "music_bed": "suspense",
+  "head_trim": 0.0,
+  "end_card": {"title": "THE LAST FERRY", "lines": ["EP.{next} TOMORROW"], "site": "example.com", "secs": 4},
+  "episodes": {"1": {"title": "Pilot"}},
+  "existing_exploitation": [
+    {"platform": "YouTube (own channel)", "scope": "self-distribution, non-exclusive", "since": "2026-01"}
+  ]
+}

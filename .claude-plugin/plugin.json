@@ -1,0 +1,10 @@
+{
+  "name": "dramapack",
+  "version": "0.1.0",
+  "description": "Short-drama delivery: platform submission packs (TikTok Drama Center, DramaWave, ReelShort), -14 LUFS mastering, subtitle safe areas, clean masters, audits and music/font rights checks. MCP server + skill.",
+  "author": {"name": "Dawnwood", "url": "https://dawnwood.ai/open-source/"},
+  "homepage": "https://dawnwood.ai/open-source/",
+  "repository": "https://github.com/dawnwood-ai/dramapack",
+  "license": "Apache-2.0",
+  "keywords": ["short drama", "vertical drama", "delivery package", "loudness", "subtitles", "mcp"]
+}

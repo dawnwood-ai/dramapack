@@ -1,0 +1,9 @@
+{
+  "name": "EP1", "fps": 30, "ratio": "9:16",
+  "tracks": {
+    "video":   [{"id": "c1", "source": "shot_01.mp4", "in": 0.0, "out": 3.2},
+                {"id": "c2", "source": "shot_02.mp4", "in": 0.4, "out": 2.9}],
+    "audio":   [{"id": "a1", "source": "dialogue_01.wav", "in": 0.0, "out": 5.7}],
+    "overlay": [{"id": "t1", "start": 0.5, "end": 2.0, "text": "Subtitle or title text"}]
+  }
+}
