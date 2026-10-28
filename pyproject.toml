@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dramapack"
-version = "0.2.0"
+version = "0.2.1"
 description = "Delivery packages, -14 LUFS mastering, subtitle safe areas, clean masters, local QC (black frames, subtitle/speech alignment, optional BYO-key vision checks) and rights checks for short dramas (vertical / micro / AI dramas). CLI + MCP server."
 readme = "README.md"
 requires-python = ">=3.10"

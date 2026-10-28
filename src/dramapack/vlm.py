@@ -74,7 +74,9 @@ _VISUAL = _COMMON + """
 
 Questions (answer each with "yes", "no" or "unsure"):
 - anatomy: a clearly visible anatomy failure - extra or missing fingers or limbs, a melted
-  or distorted face, broken joints, a hand fused into an object.
+  or distorted face, broken joints, a hand fused into an object. Hands or limbs that are
+  moving (motion-blurred), cut off by the frame edge, or too small to count fingers are
+  NOT anatomy failures - answer "unsure" for them, not "yes".
 - garbled_text: on-screen text that is garbled, misspelled gibberish or melted glyphs
   (captions, signs, screens, documents). Clean legible text, and burned subtitles that
   read correctly, are NOT a defect.

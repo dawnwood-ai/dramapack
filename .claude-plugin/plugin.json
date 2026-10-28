@@ -1,6 +1,6 @@
 {
   "name": "dramapack",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Short-drama delivery: platform submission packs (TikTok Drama Center, DramaWave, ReelShort), -14 LUFS mastering, subtitle safe areas, clean masters, local QC (black frames, subtitle sync, optional BYO vision checks) and music/font rights checks. MCP server + skill.",
   "author": {"name": "Dawnwood", "url": "https://dawnwood.ai/open-source/"},
   "homepage": "https://dawnwood.ai/open-source/",

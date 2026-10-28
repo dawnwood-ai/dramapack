@@ -2,6 +2,15 @@
 
 All notable changes to dramapack. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.2.1 - 2026-10-27
+
+### Fixed
+
+- VLM visual check: hands or limbs that are motion-blurred, cut off by the frame edge or
+  too small to count fingers are now answered "unsure" instead of being flagged as an
+  anatomy failure. Found on a real talking-head clip where a gesturing hand at the bottom
+  edge was graded red.
+
 ## 0.2.0 - 2026-10-27
 
 Local short-drama QC: the audit now covers what cloud QC services check first, free and
