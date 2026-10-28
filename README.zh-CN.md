@@ -29,12 +29,12 @@ Center / DramaWave / ReelShort 递案包、−14 LUFS 母带、烧录在字幕�
 （`apt install fonts-noto-cjk`）。
 
 ```bash
-pip install "git+https://github.com/dawnwood-ai/dramapack"
+pip install dramapack
 # 或免安装直接运行:
-uvx --from git+https://github.com/dawnwood-ai/dramapack dramapack --help
+uvx dramapack --help
 ```
 
-可选的台词密度指标：`pip install "dramapack[speech] @ git+https://github.com/dawnwood-ai/dramapack"`。
+可选的台词密度指标：`pip install "dramapack[speech]"`。
 
 ## 60 秒上手
 

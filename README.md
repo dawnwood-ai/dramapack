@@ -39,12 +39,12 @@ Requires Python >= 3.10 and **ffmpeg** (with libass + libx264) on `PATH`. For CJ
 subtitles install Noto CJK fonts (`apt install fonts-noto-cjk`).
 
 ```bash
-pip install "git+https://github.com/dawnwood-ai/dramapack"
+pip install dramapack
 # or run without installing:
-uvx --from git+https://github.com/dawnwood-ai/dramapack dramapack --help
+uvx dramapack --help
 ```
 
-Optional dialogue-density metrics: `pip install "dramapack[speech] @ git+https://github.com/dawnwood-ai/dramapack"`.
+Optional dialogue-density metrics: `pip install "dramapack[speech]"`.
 
 ## 60-second quickstart
 

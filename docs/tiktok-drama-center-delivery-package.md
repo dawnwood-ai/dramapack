@@ -15,7 +15,7 @@ the platform's partner portal. The pack covers the intersection most platforms s
 ## 60-second version
 
 ```bash
-pip install "git+https://github.com/dawnwood-ai/dramapack"
+pip install dramapack
 # input/: 01.mp4 02.mp4 ... 01.srt 02.srt ... (optional: 01.jpg, show.json, rights.json)
 dramapack check-rights --input input/            # fix red items first
 dramapack package input/ out/ --title "My Show" --studio "My Studio" --bed tension

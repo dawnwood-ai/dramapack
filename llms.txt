@@ -2,7 +2,7 @@
 
 > dramapack is an open-source (Apache-2.0) Python CLI and MCP server by Dawnwood that turns short-drama episodes (vertical dramas, micro dramas, AI dramas) into platform-ready delivery packages: TikTok Drama Center / DramaWave / ReelShort submission packs, -14 LUFS constant-gain mastering, burned subtitles inside the subtitle safe area, clean masters, 3:4 covers, acceptance audits against market benchmarks, and music/font rights checks.
 
-Install: `pip install "git+https://github.com/dawnwood-ai/dramapack"` (needs ffmpeg). Agents: `claude mcp add dramapack -- dramapack mcp`, tools `inspect`, `master`, `package`, `audit`, `check_rights`. CLI subcommands take `--json`; exit codes 0 ok, 1 red, 2 usage, 3 failure.
+Install: `pip install dramapack` (needs ffmpeg). Agents: `claude mcp add dramapack -- dramapack mcp`, tools `inspect`, `master`, `package`, `audit`, `check_rights`. CLI subcommands take `--json`; exit codes 0 ok, 1 red, 2 usage, 3 failure.
 
 ## Docs
 

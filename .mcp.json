@@ -2,7 +2,7 @@
   "mcpServers": {
     "dramapack": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/dawnwood-ai/dramapack", "dramapack", "mcp"]
+      "args": ["dramapack", "mcp"]
     }
   }
 }

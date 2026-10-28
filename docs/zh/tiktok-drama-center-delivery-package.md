@@ -12,7 +12,7 @@ AI 制作披露，以及带实测规格和音乐/字体版权检查结果的 `ma
 ## 60 秒上手
 
 ```bash
-pip install "git+https://github.com/dawnwood-ai/dramapack"
+pip install dramapack
 # input/:01.mp4 02.mp4 … 01.srt 02.srt …(可选:01.jpg、show.json、rights.json)
 dramapack check-rights --input input/            # 先把红项处理掉
 dramapack package input/ out/ --title "我的剧" --studio "我的工作室" --bed tension

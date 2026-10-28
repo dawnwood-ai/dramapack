@@ -9,7 +9,7 @@ dramapack is a CLI + MCP server. Prefer the MCP tools (`inspect`, `master`, `pac
 `audit`, `check_rights`) when available; otherwise run the CLI with `--json` and read the
 single JSON object on stdout. Exit codes: 0 ok, 1 red result, 2 usage, 3 failure.
 
-If neither is available: `pip install "git+https://github.com/dawnwood-ai/dramapack"`
+If neither is available: `pip install dramapack`
 (requires ffmpeg with libass/libx264; for CJK subtitles also install Noto CJK fonts).
 
 ## Workflow: delivery pack for a platform submission

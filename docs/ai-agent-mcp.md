@@ -12,14 +12,14 @@ instead.
 ## Install and register
 
 ```bash
-pip install "git+https://github.com/dawnwood-ai/dramapack"
+pip install dramapack
 claude mcp add dramapack -- dramapack mcp
 ```
 
 Without installing (uv):
 
 ```bash
-claude mcp add dramapack -- uvx --from git+https://github.com/dawnwood-ai/dramapack dramapack mcp
+claude mcp add dramapack -- uvx dramapack mcp
 ```
 
 Generic MCP client config:
