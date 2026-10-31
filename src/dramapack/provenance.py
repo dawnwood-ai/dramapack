@@ -6,7 +6,7 @@ dramapack is Apache-2.0; keeping the credit is a request (see NOTICE), not a lic
 condition. There is intentionally no switch in the tool to turn it off.
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 PROVENANCE = {
     "name": "dramapack",

@@ -15,7 +15,8 @@ AI 制作披露，以及带实测规格和音乐/字体版权检查结果的 `ma
 pip install dramapack
 # input/:01.mp4 02.mp4 … 01.srt 02.srt …(可选:01.jpg、show.json、rights.json)
 dramapack check-rights --input input/            # 先把红项处理掉
-dramapack package input/ out/ --title "我的剧" --studio "我的工作室" --bed tension
+dramapack package input/ out/ --title "我的剧" --studio "我的工作室" --bed tension \
+    --target tiktok-dc
 dramapack audit out/episodes/01.mp4 --cut input/01.mp4
 ```
 
@@ -33,6 +34,17 @@ dramapack audit out/episodes/01.mp4 --cut input/01.mp4
 | AI 披露 | `docs/AI-DISCLOSURE.md` | 发送前请复核 |
 | 规格 | `manifest.json` | 从文件实测，附版权检查 |
 | 每集 1–3 分钟 | `platform/`（`--platform-pairs`） | 相邻两集合成一条，画面逐帧相同 |
+| 无黑边（DC "Can be improved"，代码 4） | 每条视频四边提亮（`--target tiktok-dc`） | 任意一边暗带持续 > 3.5 s 就会被判，不只是上下黑边；`audit` 里的 `edge_dark` 就是这项 |
+| 分集封面 | 片头 1 秒封面静帧（`--target tiktok-dc`） | Drama Center 默认拿第 0 帧当分集封面；SRT 同步后移 1 秒 |
+
+## TikTok Drama Center：`--target tiktok-dc` 多做了什么
+
+通用交付包管不到、但真实被 Drama Center 打回 "Can be improved" 的两个原因：
+
+- **黑边（代码 4）。** Drama Center 判的是*某一条边上的暗带*，不只是整帧黑：任意一边 20 px 宽（按 1080 宽计）的条带平均亮度低于 12、连续超过约 3.5 秒就会被标；1078 宽的 AI 视频补边到 1080 后右侧那条 2 px 黑线也会触发。`--target tiktok-dc` 会把四边各裁掉几个像素再放大回原尺寸，并用 160 px 余弦渐变把四边提亮到深灰（只改比渐变更暗的像素）。对原始剪辑跑 `dramapack audit` 可以看到哪些集原本会被判（`edge_dark`）。`--no-edge-lift` 关闭。
+- **分集默认封面 = 第 0 帧。** 在 Drama Center 里换关键帧要逐集手动选。交付包会在片头加 1 秒分集封面静帧（`NN.jpg`，没有就用 `cover.jpg`，再没有就从剪辑里取一帧），让第 0 帧就是封面；SRT 同步后移。请提供真正的封面图 `NN.jpg`。`--no-cover-head` 关闭。
+
+**字幕区被标。** Drama Center 的字幕检测不太稳：字幕明明在 dramapack 烧录的 70% 宽安全区内也可能被标。如果被标的是 `episodes/` 里的字幕，同一个文件重新上传往往就过了。
 
 ## 发送前
 

@@ -89,7 +89,8 @@ def build_package(input_dir: str, output_dir: str, *, show: str | None = None,
                   bed: str | None = None, music: str | None = None,
                   masters_ready: bool = False, episodes=None, platform_pairs: bool = False,
                   clean: bool = True, covers: bool = True, timeline: bool = True,
-                  keep_work: bool = False) -> dict:
+                  keep_work: bool = False, target: str | None = None,
+                  edge_lift: bool = True, cover_head: bool = True) -> dict:
     """Build a delivery pack; returns a summary plus the path to the full manifest."""
     _require_ffmpeg()
     from .package import build, load_show
@@ -98,7 +99,8 @@ def build_package(input_dir: str, output_dir: str, *, show: str | None = None,
                     music_bed=bed, music=_abs(music))
     man = build(input_dir, output_dir, show=shw, rights_path=_abs(rights),
                 masters_ready=masters_ready, clean=clean, covers=covers, timeline=timeline,
-                platform_pairs=platform_pairs, episodes=episodes, keep_work=keep_work)
+                platform_pairs=platform_pairs, episodes=episodes, keep_work=keep_work,
+                target=target, edge_lift=edge_lift, cover_head=cover_head)
     blocking = [g for g in man["gaps"] if "do not ship" in g or "failed" in g]
     status = worst([man["rights"]["status"], "red" if blocking else
                     ("yellow" if man["gaps"] else "green")])
@@ -109,6 +111,7 @@ def build_package(input_dir: str, output_dir: str, *, show: str | None = None,
     return {"ok": True, "status": status, "output_dir": output_dir,
             "manifest": os.path.join(output_dir, "manifest.json"),
             "rights_status": man["rights"]["status"], "rights_summary": man["rights"]["summary"],
+            "target": man["target"], "dc_finish": man["dc_finish"],
             "gaps": man["gaps"], "notes": man["notes"], "episodes": eps,
             "platform": [p["files"]["episode"]["path"] for p in man["platform"]],
             "generator": man["generator"]}

@@ -95,19 +95,25 @@ def master_tool(input: str, output: str, srt: str | None = None, burn: bool = Tr
     "clean masters (no subtitles), covers/NN.jpg (3:4, >=350x500), timeline renders + EDL "
     "CSV, docs/CHAIN-OF-TITLE.md (blank, to be signed by a person), docs/AI-DISCLOSURE.md, "
     "manifest.json with measured specs and a rights check. Returns status (red = do not "
-    "ship), gaps, notes and file paths. Slow: two encodes per episode."))
+    "ship), gaps, notes and file paths. target='tiktok-dc' also finishes every video for "
+    "TikTok Drama Center: lifts dark frame edges (its 'black bars' rejection) and prepends "
+    "a 1 s still of the episode cover so frame 0, its default episode cover, is the cover "
+    "(SRTs shifted to match); edge_lift / cover_head turn either off. Slow: two encodes "
+    "per episode (one more each with tiktok-dc)."))
 def package_tool(input_dir: str, output_dir: str, title: str | None = None,
                  studio: str | None = None, language: str | None = None,
                  bed: str | None = None, music: str | None = None,
                  masters_ready: bool = False, episodes: list[int] | None = None,
                  platform_pairs: bool = False, clean: bool = True, covers: bool = True,
                  timeline: bool = True, show: str | None = None,
-                 rights: str | None = None) -> dict[str, Any]:
+                 rights: str | None = None, target: str | None = None,
+                 edge_lift: bool = True, cover_head: bool = True) -> dict[str, Any]:
     return api.build_package(input_dir, output_dir, show=show, rights=rights, title=title,
                              studio=studio, language=language, bed=bed, music=music,
                              masters_ready=masters_ready, episodes=episodes,
                              platform_pairs=platform_pairs, clean=clean, covers=covers,
-                             timeline=timeline)
+                             timeline=timeline, target=target, edge_lift=edge_lift,
+                             cover_head=cover_head)
 
 
 @mcp.tool(name="audit", annotations=_AUDIT, description=(

@@ -23,7 +23,8 @@ import re
 import statistics
 import subprocess
 
-from .ff import TIMEOUT_LONG, TIMEOUT_SHORT, ffmpeg_exe, log_stderr, probe_duration, video_size
+from .ff import (TIMEOUT_LONG, TIMEOUT_SHORT, ffmpeg_exe, has_audio, log_stderr, probe_duration,
+                 video_fps, video_size)
 from .srt import shift_srt
 
 #: Integrated loudness target for finished episodes (LUFS).
@@ -656,3 +657,122 @@ def concat_mp4(exe: str, parts: list, dest: str, *, preset: str = "medium") -> s
             "-movflags", "+faststart", dest]
     subprocess.run(cmd, check=True, capture_output=True, timeout=TIMEOUT_LONG)
     return dest
+
+
+# --- TikTok Drama Center finishing ----------------------------------------------------
+
+#: Edge lift. Drama Center rejects episodes with a dark band along one side ("black bars",
+#: code 4; detection in ``audit.edge_runs``). Two fixes, both measured on rejected
+#: episodes (2026-10-31):
+#: 1. Crop EDGE_CROP_PX off every side and scale back to the frame size. Removes the hard
+#:    2 px black column that AI-video sources rendered 1078 wide and padded to 1080 carry
+#:    on the right edge. 4 px at 1080 is a 0.4% zoom, invisible.
+#: 2. A four-side LIFT_PX cosine ramp up to luma LIFT_LUMA (full range; 0 in the middle)
+#:    blended with ``lighten``: only pixels darker than the mask move, so a bright edge is
+#:    untouched and a black one becomes a dark grey the detector no longer counts.
+#:    Re-measured after the lift: every 20 px band averaged >= 25.5 (threshold 12).
+#: Sizes are stated at 1080 wide and scaled to the frame.
+EDGE_CROP_PX = 4
+LIFT_PX = 160
+LIFT_LUMA = 26
+#: Cover head. Drama Center uses frame 0 as the default episode cover; picking a keyframe
+#: is a manual step per episode in its UI. A 1 s still of the cover (silent audio) at the
+#: head makes frame 0 the cover.
+COVER_HEAD_S = 1.0
+
+
+def edge_mask_png(path: str, size: tuple) -> str:
+    """Grey mask for :func:`dc_finish`: cosine ramp from LIFT_LUMA at each edge to 0 at
+    LIFT_PX in. Built from four ramps merged with ``lighter`` (max) - the same as taking
+    the nearest edge, without a per-pixel loop."""
+    import math  # noqa: PLC0415
+
+    from PIL import Image, ImageChops  # noqa: PLC0415
+
+    w, h = size
+    n = max(2, round(LIFT_PX * w / 1080))
+    ramp = [int(round(LIFT_LUMA * 0.5 * (1 + math.cos(math.pi * d / n)))) for d in range(n)]
+    col = Image.new("L", (1, n))
+    col.putdata(ramp)
+    row = Image.new("L", (n, 1))
+    row.putdata(ramp)
+    top, left = col.resize((w, n)), row.resize((n, h))
+    mask = Image.new("L", (w, h), 0)
+    for im, xy in ((top, (0, 0)), (top.transpose(Image.Transpose.FLIP_TOP_BOTTOM), (0, h - n)),
+                   (left, (0, 0)), (left.transpose(Image.Transpose.FLIP_LEFT_RIGHT), (w - n, 0))):
+        layer = Image.new("L", (w, h), 0)
+        layer.paste(im, xy)
+        mask = ImageChops.lighter(mask, layer)
+    mask.save(path, "PNG")
+    return path
+
+
+def dc_finish(src: str, out: str, *, cover: str | None = None, lift: bool = True,
+              head_s: float = COVER_HEAD_S, exe: str | None = None, log=log_stderr) -> dict:
+    """TikTok Drama Center finishing of a finished episode: optional ``cover`` still for
+    ``head_s`` at the head (frame 0 = the cover), and the edge lift (crop + scale back +
+    ``lighten`` mask). The frame size and rate stay those of ``src``. Burned subtitles move
+    with the picture; a sidecar SRT must be shifted by ``head_s`` (the caller does it).
+    Returns what was applied."""
+    exe = exe or ffmpeg_exe()
+    w, h = video_size(exe, src)
+    fps = video_fps(exe, src)
+    audio = has_audio(exe, src)
+    info: dict = {"cover_head_s": head_s if cover else 0.0, "edge_lift": None}
+    cmd = [exe, "-y", "-hide_banner", "-v", "error", "-i", src]
+    graph = []
+    if lift:
+        cx = max(2, 2 * round(EDGE_CROP_PX * w / 1080 / 2))
+        cy = max(2, 2 * round(cx * h / w / 2))
+        graph.append(f"[0:v]crop={w - 2 * cx}:{h - 2 * cy},scale={w}:{h},setsar=1,"
+                     f"format=yuv420p[body]")
+        info["edge_lift"] = {"crop_px": [cx, cy], "mask_px": max(2, round(LIFT_PX * w / 1080)),
+                             "mask_luma": LIFT_LUMA}
+    else:
+        graph.append("[0:v]setsar=1,format=yuv420p[body]")
+    body = "[body]"
+    nxt = 1
+    if cover:
+        # Fill the frame (scale up + centre crop), never pad: padding a 3:4 cover would
+        # put black bars on the head, the very thing this function removes.
+        cmd += ["-loop", "1", "-framerate", f"{fps:g}", "-t", f"{head_s:.3f}", "-i", cover]
+        graph.append(f"[{nxt}:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
+                     f"crop={w}:{h},setsar=1,fps={fps:g},format=yuv420p[head]")
+        nxt += 1
+        if audio:
+            cmd += ["-f", "lavfi", "-t", f"{head_s:.3f}", "-i",
+                    "anullsrc=r=48000:cl=stereo"]
+            A = "aformat=sample_rates=48000:channel_layouts=stereo"
+            graph.append(f"[{nxt}:a]{A}[ha];[0:a]{A}[ba];[head][ha][body][ba]"
+                         "concat=n=2:v=1:a=1[cat][oa]")
+            nxt += 1
+        else:
+            graph.append("[head][body]concat=n=2:v=1:a=0[cat]")
+        body = "[cat]"
+    if lift:
+        mask = edge_mask_png(os.path.splitext(out)[0] + ".mask.png", (w, h))
+        cmd += ["-loop", "1", "-framerate", f"{fps:g}", "-i", mask]
+        # blend needs shortest=1: the looped mask never ends. c1/c2 "normal" at opacity 1
+        # keep the picture's chroma; only luma is lightened.
+        graph.append(f"[{nxt}:v]format=gray,format=yuv420p[mask];{body}[mask]blend="
+                     "c0_mode=lighten:c1_mode=normal:c2_mode=normal:c1_opacity=1:"
+                     "c2_opacity=1:shortest=1[ov]")
+        body = "[ov]"
+    cmd += ["-filter_complex", ";".join(graph), "-map", body]
+    if audio:
+        cmd += ["-map", "[oa]" if cover else "0:a",
+                "-c:a", "aac", "-b:a", "192k", "-ar", "48000"]
+    cmd += ["-c:v", "libx264", "-crf", "18", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart", out]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_LONG)
+    if lift:
+        try:
+            os.remove(os.path.splitext(out)[0] + ".mask.png")
+        except OSError:
+            pass
+    if r.returncode != 0:
+        raise RuntimeError(f"dc_finish failed: {r.stderr[-400:]}")
+    if log:
+        log(f"dc_finish: cover head {info['cover_head_s']:g} s, edge lift "
+            f"{'on' if lift else 'off'}")
+    return info

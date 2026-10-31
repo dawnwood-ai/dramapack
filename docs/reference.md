@@ -38,7 +38,8 @@ example is in [`examples/input/`](../examples/input/).
   "end_card": {"title": "THE LAST FERRY", "lines": ["EP.{next} TOMORROW"], "site": "example.com", "secs": 4},
   "episodes": {"1": {"title": "Pilot", "head_trim": 0.5}},
   "ai_disclosure": {"imagery": "...", "voice": "...", "music": "...", "human_authored": ["..."]},
-  "existing_exploitation": [{"platform": "YouTube (own channel)", "scope": "non-exclusive", "since": "2026-01"}]
+  "existing_exploitation": [{"platform": "YouTube (own channel)", "scope": "non-exclusive", "since": "2026-01"}],
+  "target": "generic"
 }
 ```
 
@@ -47,6 +48,8 @@ example is in [`examples/input/`](../examples/input/).
   with a matching `"file"` or the rights check is red.
 - `end_card.lines` may use `{num}`, `{next}`, `{title}`. Keep cards around 4 s.
 - `episodes` overrides per episode (`title`, `head_trim`, `end_card`).
+- `target`: `generic` (default) or `tiktok-dc`; `--target` overrides it. See
+  [TikTok Drama Center finishing](#tiktok-drama-center-finishing---target-tiktok-dc).
 - `rights_holder` empty → the chain of title keeps a blank to be filled in and signed.
 
 ## `NN.timeline.json`
@@ -109,7 +112,7 @@ Use `"music": []` to declare that the episodes contain no music.
 ```
 out/
   episodes/NN.mp4        subtitled master (burned subtitles, -14 LUFS)
-  episodes/NN.srt        same-name subtitles (shifted to match any head trim)
+  episodes/NN.srt        same-name subtitles (shifted to match any head trim / cover head)
   clean/NN.mp4           clean master: same edit, mix and loudness, no subtitles
   covers/NN.jpg          3:4 cover (>= 350x500)
   timeline/NN.png        timeline RENDERED from data (labelled as such) + NN.edl.csv
@@ -134,6 +137,7 @@ dramapack master IN.mp4 OUT.mp4 [--srt S.srt] [--no-burn] [--bed MOOD | --music 
 dramapack package INPUT_DIR OUTPUT_DIR [--show show.json] [--rights rights.json]
     [--title T] [--studio S] [--language xx] [--bed MOOD] [--music FILE]
     [--masters-ready] [--episodes 1,2,3] [--platform-pairs]
+    [--target generic|tiktok-dc] [--no-edge-lift] [--no-cover-head]
     [--no-clean] [--no-covers] [--no-timeline] [--keep-work] [--strict] [--json]
 
 dramapack audit FILE... [--cut RAW.mp4] [--bounds 3.2,7.9] [--no-speech]
@@ -183,11 +187,15 @@ All results have `"ok": true` on success.
 - `master`: `output`, `subtitles` (`burned` / `none`), `music_bed`, `music_file`, `spec`, `generator`
 - `package`: `status`, `output_dir`, `manifest`, `rights_status`, `rights_summary`, `gaps`,
   `notes`, `episodes[].files.{episode,srt,clean_master,cover,timeline,timeline_ui}` (absolute
-  paths), `platform`, `generator`
+  paths), `platform`, `target`, `dc_finish` (null unless `tiktok-dc`), `generator`.
+  `manifest.json` additionally carries, with `tiktok-dc`, `files.episode.cover_head_s` /
+  `edge_lift` (same on `clean_master`), `files.srt.shifted_s`, and `episodes[].thumbnail.frame0`
+  (`cover` when frame 0 is the cover still, else `picture`)
 - `audit`: `status`, `rows[]` (metrics + `grades` + `red`), `skipped`, `thresholds`, and
   `vlm` (`model`, `base_url`, `requests`, `max_frames_per_file`) when VLM checks ran.
   Row detail fields: `black`, `black_segments[]` (`start`, `end`, `dur`, `where`
-  head/tail/mid, `level`); `srt`, `sub_drift`, `sub_drift_signed` (+ = subtitles late),
+  head/tail/mid, `level`); `edge_dark` (longest dark run on the worst side, s),
+  `edge_dark_side`, `edge_dark_at`, `edge_sides.{top,bottom,left,right}` (`secs`, `at`); `srt`, `sub_drift`, `sub_drift_signed` (+ = subtitles late),
   `sub_offset_p90`, `sub_orphan_share`, `sub_uncovered_s`, `sub_orphans[]`,
   `sub_uncovered[]`, `sub_late_early[]`, `sub_text`, `sub_text_flags[]`, `sub_text_note`;
   `vlm_visual` / `vlm_compliance` / `vlm_hook` (levels), `vlm_*_answers`,
@@ -196,6 +204,30 @@ All results have `"ok": true` on success.
 - `check-rights`: `status`, `summary`, `findings[]` (`level`, `kind`, `item`, `message`), `rights_path`
 - `inspect`: `path`, `duration_s`, `width`, `height`, `fps`, `audio`, `bytes`,
   `integrated_lufs`, `true_peak_dbtp`, `loudness_range_lu`, `loudness_gain_to_target_db`
+
+## TikTok Drama Center finishing (`--target tiktok-dc`)
+
+`package --target tiktok-dc` (or `show.json` `"target": "tiktok-dc"`) runs one more
+encode on every delivered video, subtitled and clean alike, after mastering:
+
+- **Edge lift** (`--no-edge-lift` to skip). Drama Center rejects episodes with a dark band
+  along any one side ("black bars", code 4), not only letterboxing: measured on real
+  rejections, a 20 px band (at 1080 wide) darker than mean luma 12 for more than 3.5 s
+  is enough, and so is the hard 2 px black column of a 1078-wide AI render padded to
+  1080. The lift crops 4 px off every side (scaled to the frame) and scales back, then
+  blends a 160 px cosine ramp up to luma 26 at each edge with `lighten`, which only
+  raises pixels darker than the ramp. Bright edges are untouched; black edges become a
+  dark grey. `audit` reports the same check as `edge_dark`.
+- **Cover head** (`--no-cover-head` to skip). Drama Center uses frame 0 as each episode's
+  default cover; choosing another keyframe is a manual step per episode. The package
+  prepends a 1 s still of the episode cover (with silent audio), using the same source as
+  `covers/`: `NN.jpg`, else `cover.jpg`, else a frame from the cut. The cover fills the
+  frame (scaled and centre-cropped, never padded). Delivered SRTs are shifted by 1 s;
+  burned subtitles move with the picture. The head also delays `first_speech` by 1 s in
+  an `audit` of the finished file.
+
+The frame size and rate are kept. Platform pairs (`--platform-pairs`) are joined from
+the finished files, so the second episode's cover still sits mid-file.
 
 ## Audit thresholds
 
@@ -212,6 +244,7 @@ All results have `"ok": true` on success.
 | `first_speech` | <= 1.5 s | > 3.0 s | the hook line should land immediately |
 | `tail_static` | <= 5 s | > 6.5 s | long static end cards crush completion |
 | `black` | no mid-episode black; head/tail <= 1 s | mid-episode black >= 0.5 s | a render gap or failed clip; shorter mid black or longer edge black is yellow |
+| `edge_dark` | <= 2.0 s | > 3.5 s | longest run with one side dark: the 20 px edge band (at 1080 wide) or its outer 2 px line at mean luma < 12 (0-255). TikTok Drama Center rejects it as black bars (code 4) |
 | `sub_drift` | <= 0.3 s | > 0.8 s | median cue start offset vs speech (head trim not applied to the SRT) |
 | `sub_offset_p90` | <= 0.5 s | > 1.0 s | a few badly timed cues |
 | `sub_orphan_share` | <= 0.05 | > 0.20 | cues with no speech under them (SFX cues exempt) |

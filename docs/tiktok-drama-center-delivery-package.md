@@ -18,7 +18,8 @@ the platform's partner portal. The pack covers the intersection most platforms s
 pip install dramapack
 # input/: 01.mp4 02.mp4 ... 01.srt 02.srt ... (optional: 01.jpg, show.json, rights.json)
 dramapack check-rights --input input/            # fix red items first
-dramapack package input/ out/ --title "My Show" --studio "My Studio" --bed tension
+dramapack package input/ out/ --title "My Show" --studio "My Studio" --bed tension \
+    --target tiktok-dc
 dramapack audit out/episodes/01.mp4 --cut input/01.mp4
 ```
 
@@ -36,6 +37,28 @@ dramapack audit out/episodes/01.mp4 --cut input/01.mp4
 | AI disclosure | `docs/AI-DISCLOSURE.md` | Review before sending |
 | Specs | `manifest.json` | Measured from the files, plus the rights check |
 | 1-3 min per episode | `platform/` (`--platform-pairs`) | Joins two consecutive episodes per file, same frames |
+| No black bars (DC "Can be improved", code 4) | edge lift on every video (`--target tiktok-dc`) | A dark band on any one side for > 3.5 s is flagged, not only letterboxing; `audit` reports it as `edge_dark` |
+| Episode cover | 1 s cover still at the head (`--target tiktok-dc`) | Drama Center's default episode cover is frame 0; SRTs are shifted 1 s to match |
+
+## TikTok Drama Center: what `--target tiktok-dc` adds
+
+Two reasons episodes came back "Can be improved" that a generic pack does not handle:
+
+- **Black bars (code 4).** Drama Center flags a dark *band along one edge*, not just
+  full-frame black: a 20 px band (at 1080 wide) darker than mean luma 12 for more than
+  about 3.5 s on any one side, or a thin black column such as the 2 px a 1078-wide AI
+  render picks up when padded to 1080. `--target tiktok-dc` crops a few px off the edges,
+  scales back, and lifts every edge to a dark grey with a 160 px ramp (only pixels darker
+  than the ramp change). Run `dramapack audit` on your source cuts to see which episodes
+  would have been flagged (`edge_dark`). `--no-edge-lift` turns it off.
+- **Default episode cover = frame 0.** Picking a keyframe in Drama Center is a manual step
+  per episode. The pack prepends a 1 s still of the episode cover (`NN.jpg`, else
+  `cover.jpg`, else a frame from the cut) so frame 0 is the cover; the SRT is shifted to
+  match. Supply real key art as `NN.jpg`. `--no-cover-head` turns it off.
+
+**Subtitle-area flags.** Drama Center's subtitle detector is noisy: it can flag subtitles
+that are inside the 70%-width safe area dramapack burns to. If the subtitles in
+`episodes/` are what got flagged, re-uploading the same file often clears it.
 
 ## Before you send it
 

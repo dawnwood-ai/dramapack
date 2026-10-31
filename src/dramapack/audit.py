@@ -6,7 +6,8 @@ from a measured benchmark sample (competing vertical dramas from platforms such 
 DramaWave and ReelShort, other AI-produced series, and our own early cuts).
 
 Deterministic metrics (ffmpeg only): duration, average shot length, long-shot share,
-mean volume, seam level jumps (when splice points are given), frozen tail, black frames.
+mean volume, seam level jumps (when splice points are given), frozen tail, black frames,
+dark edge bands.
 Optional: speech density and subtitle/speech alignment via faster-whisper
 (``pip install dramapack[speech]``); skipped automatically when not installed.
 Optional and **off by default**: vision-model checks with your own key or a local model
@@ -26,8 +27,9 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 
-from .ff import ffmpeg_exe, ffprobe_exe
+from .ff import ffmpeg_exe, ffprobe_exe, video_size
 
 # Every subprocess gets a timeout: a truncated mp4 can make ffmpeg read forever and hang
 # an unattended acceptance job that otherwise just looks "still running".
@@ -97,9 +99,26 @@ BLACK_EDGE_OK_S = 1.0
 BLACK_MID_RED_S = 0.5
 BLACK_EDGE_TOL_S = 0.15   # blackdetect's last end is the last frame pts, not the duration
 
+# Dark edge bands ("black bars", TikTok Drama Center rejection code 4). Drama Center does
+# not flag full-frame black: it flags a dark *band along one side* of the frame. Measured
+# on real rejections (2026-10-31): a 20 px band (at 1080 wide) on any one side with mean
+# luma < 12 (full range, 0-255) continuously for > 3.5 s was flagged. Drama Center's own
+# help says 5 s, but an episode dark for 3.8 s on one edge was rejected too, so red starts
+# at 3.5 s. A hard 2 px black column (AI-video sources rendered 1078 wide and padded to
+# 1080) also triggers it while the 20 px band around it still averages bright, so each
+# side is also measured as a 2 px line; either one dark counts. Sampled at 5 fps from the
+# same decode as shot detection. Dark night scenes can trip it legitimately: Drama Center
+# rejects them anyway, which is why ``package --target tiktok-dc`` lifts every edge.
+EDGE_BAND_PX = 20
+EDGE_LINE_PX = 2
+EDGE_DARK = 12.0
+EDGE_FPS = 5
+EDGE_SIDES = ("top", "bottom", "left", "right")
+T["edge_dark"] = (2.0, 3.5)   # longest dark run on any one side (s), lower is better
+
 SCENE_TH = 0.15   # low threshold catches in-scene cuts; a high one only sees scene changes
 LONG_SHOT = 4.0
-MASTER_KEYS = {"dur", "first_speech", "tail_static", "hook", "black",
+MASTER_KEYS = {"dur", "first_speech", "tail_static", "hook", "black", "edge_dark",
                "vlm_visual", "vlm_compliance", "vlm_hook"} | ALIGN_KEYS
 _CJK = re.compile(r"[\u3400-\u9fff]")
 
@@ -140,19 +159,96 @@ def seam_jump(exe: str, path: str, bounds: list) -> dict:
             "seam_max": round(max(jumps), 1), "seams": len(jumps)}
 
 
+def _edge_crops(w: int, h: int) -> list:
+    """``[(side, kind, crop)]``: a 20 px band and a 2 px line per side, scaled to the frame
+    (the platform states sizes at 1080 wide)."""
+    out = []
+    for kind, px in (("band", EDGE_BAND_PX), ("line", EDGE_LINE_PX)):
+        b = max(1, round(px * w / 1080))
+        out += [("top", kind, f"crop={w}:{b}:0:0"), ("bottom", kind, f"crop={w}:{b}:0:{h - b}"),
+                ("left", kind, f"crop={b}:{h}:0:0"), ("right", kind, f"crop={b}:{h}:{w - b}:0")]
+    return out
+
+
+def _read_yavg(path: str) -> list:
+    """``metadata=print`` file -> ``[(pts_time, YAVG)]``."""
+    out, t = [], None
+    try:
+        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
+    except OSError:
+        return out
+    for ln in lines:
+        m = re.search(r"pts_time:([\d.]+)", ln)
+        if m:
+            t = float(m.group(1))
+            continue
+        m = re.match(r"lavfi\.signalstats\.YAVG=([\d.]+)", ln.strip())
+        if m and t is not None:
+            out.append((t, float(m.group(1))))
+    return out
+
+
+def edge_runs(series: dict, fps: float = EDGE_FPS, dark: float = EDGE_DARK) -> dict:
+    """``{side: [(t, mean_luma), ...]}`` -> ``{side: {"secs", "at"}}``: the longest run of
+    consecutive dark samples per side (pure function). Each sample stands for 1/fps s."""
+    out = {}
+    for side, vals in series.items():
+        best, best_at, cur, cur_at = 0, 0.0, 0, 0.0
+        for t, v in vals:
+            if v < dark:
+                if cur == 0:
+                    cur_at = t
+                cur += 1
+                if cur > best:
+                    best, best_at = cur, cur_at
+            else:
+                cur = 0
+        out[side] = {"secs": round(best / fps, 1), "at": round(best_at, 1)}
+    return out
+
+
+def edge_metrics(runs: dict) -> dict:
+    """Worst side -> ``edge_dark`` (graded), plus every side's run."""
+    if not runs:
+        return {}
+    side = max(runs, key=lambda k: runs[k]["secs"])
+    return {"edge_dark": runs[side]["secs"], "edge_dark_side": side,
+            "edge_dark_at": runs[side]["at"], "edge_sides": runs}
+
+
 def cut_metrics(exe: str, path: str) -> dict:
     dur = float(subprocess.run(
         [ffprobe_exe(), "-v", "error", "-show_entries", "format=duration",
          "-of", "csv=p=0", path], capture_output=True, text=True,
         timeout=FF_TIMEOUT_SHORT).stdout.strip() or 0)
+    w, h = video_size(exe, path)
+    crops = _edge_crops(w, h)
     # NB: metadata=print:file=- writes to STDOUT, not stderr. blackdetect rides the same
     # decode (it logs to stderr and passes frames through), so black frames cost no
-    # extra pass over the file.
-    r = subprocess.run([exe, "-nostats", "-i", path, "-filter:v",
-                        f"blackdetect=d={BLACK_MIN_S}:pix_th={BLACK_PIX_TH},"
-                        f"select='gt(scene,{SCENE_TH})',metadata=print:file=-",
-                        "-an", "-f", "null", "-"], capture_output=True, text=True,
-                       timeout=FF_TIMEOUT_LONG)
+    # extra pass over the file. The edge bands branch off the same decode too: each band
+    # prints its mean luma to its own file (relative names, cwd = a temp dir, so no path
+    # escaping inside the filter graph). format=gray gives full-range luma (black = 0),
+    # the scale the platform threshold was measured on.
+    graph = ["[0:v]split=2[m][e]",
+             f"[m]blackdetect=d={BLACK_MIN_S}:pix_th={BLACK_PIX_TH},"
+             f"select='gt(scene,{SCENE_TH})',metadata=print:file=-[o0]",
+             f"[e]fps={EDGE_FPS},format=gray,split={len(crops)}"
+             + "".join(f"[e{i}]" for i in range(len(crops)))]
+    outs = ["-map", "[o0]", "-an", "-f", "null", "-"]
+    for i, (side, kind, crop) in enumerate(crops):
+        graph.append(f"[e{i}]{crop},signalstats,"
+                     f"metadata=print:key=lavfi.signalstats.YAVG:file={kind}_{side}.txt[o{i + 1}]")
+        outs += ["-map", f"[o{i + 1}]", "-f", "null", "-"]
+    with tempfile.TemporaryDirectory(prefix="dramapack-edge-") as td:
+        r = subprocess.run([exe, "-nostats", "-i", os.path.abspath(path),
+                            "-filter_complex", ";".join(graph)] + outs,
+                           capture_output=True, text=True, timeout=FF_TIMEOUT_LONG, cwd=td)
+        series = {}
+        for side in EDGE_SIDES:
+            band = _read_yavg(os.path.join(td, f"band_{side}.txt"))
+            line = dict(_read_yavg(os.path.join(td, f"line_{side}.txt")))
+            # Dark when the band OR its outermost line is dark (see EDGE_LINE_PX).
+            series[side] = [(t, min(v, line.get(t, v))) for t, v in band]
     cuts = [float(t) for t in re.findall(r"pts_time:([\d.]+)", r.stdout)
             if 0.2 < float(t) < dur - 0.2]
     black = black_segments_from_log(r.stderr, dur)
@@ -167,7 +263,7 @@ def cut_metrics(exe: str, path: str) -> dict:
             "cpm": round(len(cuts) / (dur / 60), 1) if dur else 0,
             "long_share": round(sum(s for s in shots if s > LONG_SHOT) / dur, 2) if dur else 0,
             "mean_volume": float(m.group(1)) if m else None,
-            **black_metrics(black), "_cut_times": cuts}
+            **black_metrics(black), **edge_metrics(edge_runs(series)), "_cut_times": cuts}
 
 
 def black_segments_from_log(log: str, dur: float) -> list:
@@ -379,14 +475,15 @@ def audit_pair(master_path: str, cut_path: str | None = None, **kw) -> list:
     master_only = {k: kw.pop(k) for k in ("hook_plugin", "srt", "srt_lang", "vlm_cfg",
                                           "vlm_max_frames") if k in kw}
     bounds = kw.pop("bounds", None)
-    cut = audit(cut_path, bounds=bounds, keys=(set(T) - MASTER_KEYS) | {"dur", "black"}, **kw)
+    cut = audit(cut_path, bounds=bounds,
+                keys=(set(T) - MASTER_KEYS) | {"dur", "black", "edge_dark"}, **kw)
     mas = audit(master_path, keys=MASTER_KEYS, **master_only, **kw)
     cut["file"], mas["file"] = f"cut:{cut['file']}", f"master:{mas['file']}"
     return [cut, mas]
 
 
 ROW = ["dur", "asl", "cpm", "long_share", "speech_share", "wpm", "max_gap", "mean_volume",
-       "seam_db", "first_speech", "tail_static", "black", "hook"]
+       "seam_db", "first_speech", "tail_static", "black", "edge_dark", "hook"]
 #: Second table: subtitle alignment + vision checks (only printed when any were measured).
 ROW2 = ["sub_drift", "sub_offset_p90", "sub_orphan_share", "sub_uncovered_s", "sub_text",
         "vlm_visual", "vlm_compliance", "vlm_hook"]
@@ -420,6 +517,10 @@ def format_table(rows: list) -> str:
             if b["level"] != GREEN:
                 out.append(f"{r['file']} black {b['where']} {b['start']}-{b['end']}s "
                            f"({b['dur']} s) [{_SHORT[b['level']]}]")
+        g = r["grades"].get("edge_dark")
+        if g in (YELLOW, RED):
+            out.append(f"{r['file']} dark edge {r['edge_dark_side']} from {r['edge_dark_at']}s "
+                       f"({r['edge_dark']} s) [{_SHORT[g]}]")
         for o in r.get("sub_orphans") or []:
             out.append(f"{r['file']} cue {o['cue']} at {o['start']}s has no speech: {o['text']}")
         for u in r.get("sub_uncovered") or []:

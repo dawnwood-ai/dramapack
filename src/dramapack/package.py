@@ -70,12 +70,18 @@ TRACK_COLORS = {"video": (86, 132, 214), "audio": (92, 176, 128),
                 "overlay": (212, 164, 84)}
 EPISODE_RE = re.compile(r"^(\d{1,4})\.(mp4|mov|m4v|mkv)$", re.I)
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".webp")
+#: Delivery targets. ``generic`` = the intersection most platforms share. ``tiktok-dc`` adds
+#: TikTok Drama Center finishing to every delivered video (``master.dc_finish``): edge lift
+#: against its "black bars" rejection and a 1 s cover head so frame 0 (its default episode
+#: cover) is the cover. Both on by default for that target, each with an opt-out.
+TARGETS = ("generic", "tiktok-dc")
 
 SHOW_DEFAULTS = {
     "title": "", "studio": "", "language": "en", "tagline": "", "aspect": "9:16",
     "production_year": None, "rights_holder": "", "subtitle_font": M.SUB_FONT,
     "music_bed": None, "music": None, "music_db": M.MUSIC_DB, "head_trim": 0.0,
     "end_card": None, "episodes": {}, "ai_disclosure": {}, "existing_exploitation": [],
+    "target": "generic",
 }
 
 
@@ -96,6 +102,8 @@ def load_show(input_dir: str, show_path: str | None = None, **overrides) -> dict
     if show.get("music_bed") and show["music_bed"] not in M.BED_PRESETS:
         raise ValueError(f"unknown music_bed mood {show['music_bed']!r}; "
                          f"choose from {', '.join(M.BED_MOODS)}")
+    if (show.get("target") or "generic") not in TARGETS:
+        raise ValueError(f"unknown target {show['target']!r}; choose from {', '.join(TARGETS)}")
     if show.get("music") and not os.path.isabs(show["music"]):
         show["music"] = os.path.join(input_dir, show["music"])
     return show
@@ -308,6 +316,7 @@ def build(input_dir: str, outdir: str, *, show: dict | None = None,
           rights_path: str | None = None, masters_ready: bool = False,
           clean: bool = True, covers: bool = True, timeline: bool = True,
           platform_pairs: bool = False, episodes=None, keep_work: bool = False,
+          target: str | None = None, edge_lift: bool = True, cover_head: bool = True,
           log=log_stderr) -> dict:
     """Build a delivery pack. Returns the manifest (also written to ``manifest.json``).
 
@@ -317,9 +326,19 @@ def build(input_dir: str, outdir: str, *, show: dict | None = None,
 
     ``masters_ready=True``: ``NN.mp4`` are finished subtitled masters and are copied as-is;
     a clean master is produced only when ``NN.cut.mp4`` is present, with head trim / end
-    card inferred from the master's measured duration (:func:`match_master_params`)."""
+    card inferred from the master's measured duration (:func:`match_master_params`).
+
+    ``target="tiktok-dc"`` (or ``show.json`` ``"target"``) finishes every delivered video
+    for TikTok Drama Center after mastering: ``edge_lift`` and ``cover_head`` (both on by
+    default; see ``master.dc_finish``). The cover head uses the same cover source as
+    ``covers/`` (supplied, series ``cover.jpg``, or a frame from the cut) and shifts the
+    delivered SRT by its length."""
     exe = ffmpeg_exe()
     show = show or load_show(input_dir)
+    target = target or show.get("target") or "generic"
+    if target not in TARGETS:
+        raise ValueError(f"unknown target {target!r}; choose from {', '.join(TARGETS)}")
+    dc = target == "tiktok-dc" and (edge_lift or cover_head)
     found = discover(input_dir)
     nums = sorted(n for n in found if not episodes or n in set(episodes))
     if not nums:
@@ -345,6 +364,11 @@ def build(input_dir: str, outdir: str, *, show: dict | None = None,
                "subtitle_safe_area": {"bottom_margin_frac": M.SUB_MARGINV_FRAC,
                                       "side_margin_frac": M.SUB_MARGINLR_FRAC},
                "music_bed": mood, "music_file": os.path.basename(ext_music) if ext_music else None},
+           "target": target,
+           "dc_finish": {"edge_lift": bool(edge_lift), "cover_head": bool(cover_head),
+                         "cover_head_s": M.COVER_HEAD_S if cover_head else 0.0,
+                         "lift_px": M.LIFT_PX, "lift_luma": M.LIFT_LUMA,
+                         "crop_px": M.EDGE_CROP_PX} if dc else None,
            "episodes": [], "platform": [], "gaps": [], "notes": []}
     used_card = False
     used_subs = False
@@ -454,18 +478,17 @@ def build(input_dir: str, outdir: str, *, show: dict | None = None,
                 man["gaps"].append(f"ep{tag}: clean master {spec.get('duration_s')}s vs episode "
                                    f"{mdur}s — different edit, do not ship")
 
+        raw, origin = (_cover_source(exe, input_dir, src, cut_src or src["video"], wd)
+                       if covers or (dc and cover_head) else (None, None))
+
+        if dc:
+            _dc_episode(exe, outdir, ep, tag, raw if cover_head else None, edge_lift, wd, man, log)
+
         if covers:
-            raw, origin = src["cover"], "supplied"
-            if not raw:
-                raw = _first(input_dir, ["cover"], IMAGE_EXT)
-                origin = "series cover"
-            if not raw:
-                raw = grab_frame(exe, cut_src or src["video"], os.path.join(wd, "frame.jpg"))
-                origin = "video frame"
-                if raw:
+            if raw:
+                if origin == "video frame":
                     man["notes"].append(f"ep{tag}: cover generated from a video frame — "
                                         f"supply {tag}.jpg for real key art")
-            if raw:
                 spec = make_cover(raw, os.path.join(outdir, "covers", f"{tag}.jpg"))
                 ep["files"]["cover"] = {"path": f"covers/{tag}.jpg", "ratio": "3:4",
                                         "source": origin, **spec}
@@ -511,6 +534,51 @@ def build(input_dir: str, outdir: str, *, show: dict | None = None,
     if not keep_work:
         shutil.rmtree(work, ignore_errors=True)
     return man
+
+
+def _cover_source(exe: str, input_dir: str, src: dict, video: str, wd: str) -> tuple:
+    """``(image, origin)``: the episode cover, else the series ``cover.*``, else a frame
+    grabbed from ``video``; ``(None, None)`` when none can be had."""
+    if src["cover"]:
+        return src["cover"], "supplied"
+    raw = _first(input_dir, ["cover"], IMAGE_EXT)
+    if raw:
+        return raw, "series cover"
+    raw = grab_frame(exe, video, os.path.join(wd, "frame.jpg"))
+    return (raw, "video frame") if raw else (None, None)
+
+
+def _dc_episode(exe: str, outdir: str, ep: dict, tag: str, cover: str | None,
+                lift: bool, wd: str, man: dict, log) -> None:
+    """TikTok Drama Center finishing, in place, of the subtitled and the clean master
+    (same treatment, so they stay the same edit), then re-probe and shift the SRT."""
+    files = ep["files"]
+    head = 0.0
+    for key in ("episode", "clean_master"):
+        if key not in files or (not lift and not cover):
+            continue
+        path = os.path.join(outdir, files[key]["path"])
+        staged = os.path.join(wd, f"dc-{key}.mp4")
+        try:
+            info = M.dc_finish(path, staged, cover=cover, lift=lift, exe=exe, log=log)
+        except Exception as e:  # noqa: BLE001
+            man["gaps"].append(f"ep{tag}: Drama Center finishing of {key} failed: {str(e)[:300]}")
+            continue
+        shutil.move(staged, path)
+        head = info["cover_head_s"]
+        files[key].update(probe_spec(exe, path))
+        files[key]["cover_head_s"] = head
+        files[key]["edge_lift"] = bool(info["edge_lift"])
+    if "srt" in files and head:
+        # Delivered SRT must match the delivered master: the cover head delays every line.
+        srt = os.path.join(outdir, files["srt"]["path"])
+        shift_srt(srt, srt, head)
+        files["srt"]["shifted_s"] = head
+    # Drama Center's default episode thumbnail is frame 0.
+    ep["thumbnail"] = {"frame0": "cover" if head else "picture"}
+    if not cover:
+        man["notes"].append(f"ep{tag}: no cover for the cover head — Drama Center will "
+                            "use frame 0 of the picture as the episode cover")
 
 
 def _build_pairs(exe: str, outdir: str, man: dict, work: str, log) -> None:
@@ -688,6 +756,15 @@ will apply the licensee's labelling requirements on request.
     plat = ("| `platform/episodes/NN.mp4` (+ `.srt`, `platform/clean/`) | Two consecutive "
             "episodes joined per file (~2 min) for 1–3 min/episode specs; same frames |\n"
             if man.get("platform") else "")
+    dcf = man.get("dc_finish") or {}
+    dcnote = ""
+    if dcf.get("cover_head"):
+        dcnote += (f"- TikTok Drama Center: every video opens on a {dcf['cover_head_s']:g} s still "
+                   "of the episode cover, so frame 0 (the default episode cover) is the cover; "
+                   "the SRTs are shifted to match.\n")
+    if dcf.get("edge_lift"):
+        dcnote += ("- TikTok Drama Center: frame edges are lifted (a few px cropped and scaled "
+                   "back, dark edges raised to a dark grey) so no side reads as a black bar.\n")
     with open(os.path.join(outdir, "README.md"), "w", encoding="utf-8") as f:
         f.write(f"""# {title} — delivery package
 
@@ -714,7 +791,7 @@ Episode files are numbered `01`, `02`, … so they sort and pair by filename.
 - Two kinds of edit evidence, deliberately kept apart: `timeline/NN.png` is **rendered**
   from edit data and says so on the image; `timeline/ui/` holds **actual screenshots**.
   One is never presented as the other.
-{loud}- Rights check (music and fonts): **{man['rights']['status']}** — details in `manifest.json`.
+{loud}{dcnote}- Rights check (music and fonts): **{man['rights']['status']}** — details in `manifest.json`.
 - See `docs/AI-DISCLOSURE.md`.
 """)
         if gaps:

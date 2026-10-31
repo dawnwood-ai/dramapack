@@ -51,6 +51,15 @@ def video_size(exe: str, path: str) -> tuple:
     return (int(m.group(1)), int(m.group(2))) if m else (1080, 1920)
 
 
+def video_fps(exe: str, path: str, default: float = 30.0) -> float:
+    m = re.search(r"Video:.*?(\d+(?:\.\d+)?)\s*fps", _info(exe, path))
+    return float(m.group(1)) if m else default
+
+
+def has_audio(exe: str, path: str) -> bool:
+    return bool(re.search(r"Stream #.*Audio:", _info(exe, path)))
+
+
 def probe_spec(exe: str, path: str) -> dict:
     """Measured specs. Numbers in a manifest must come from the file itself, never from
     a database or a config — a recipient will check them."""

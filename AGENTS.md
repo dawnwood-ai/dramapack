@@ -34,8 +34,8 @@ python -m venv .venv && .venv/bin/pip install -e '.[test]'
 .venv/bin/python -m pytest -q            # needs ffmpeg with libass/libx264; ~1 min
 ```
 
-Layout: `src/dramapack/` — `master.py` (mastering), `package.py` (delivery pack),
-`audit.py` (metrics + black frames), `align.py` (subtitle/speech alignment, pure data),
+Layout: `src/dramapack/` — `master.py` (mastering + TikTok Drama Center `dc_finish`), `package.py` (delivery pack),
+`audit.py` (metrics + black frames + dark edge bands), `align.py` (subtitle/speech alignment, pure data),
 `vlm.py` (optional OpenAI-compatible vision checks, stdlib urllib), `rights.py`, `srt.py`, `ff.py` (ffmpeg discovery/probe), `api.py` (dict results
 shared by CLI and MCP), `cli.py`, `mcp_server.py`, `provenance.py`. Tests in `tests/` build
 tiny synthetic media with ffmpeg lavfi. User docs in `docs/` (`docs/zh/` = Chinese).
@@ -54,7 +54,10 @@ the topic page in `docs/`.
   dynamic) in any filter graph.
 - **Subtitles in real pixels.** ASS PlayRes pinned to the video size; bottom margin 18% of
   height, side margins 16% of width (text box <= 70%); ASS style field indices pinned.
-- **Head trim shifts subtitles**, both burned and delivered SRT.
+- **Head trim shifts subtitles**, both burned and delivered SRT. So does the
+  `tiktok-dc` cover head (delivered SRT +1 s; burned subtitles move with the picture).
+- **`tiktok-dc` finishing treats the subtitled and the clean master the same**, so they
+  stay the same edit; the edge lift only ever lightens (``blend=lighten``).
 - **Clean master = same chain with burn off**, duration-checked against the subtitled master.
 - **Rendered timeline is labelled as rendered**; never presented as a UI screenshot.
 - **Chain of title is a blank template**; the tool never signs or asserts legal facts.

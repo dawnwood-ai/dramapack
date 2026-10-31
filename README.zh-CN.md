@@ -22,7 +22,9 @@ Center / DramaWave / ReelShort 递案包、−14 LUFS 母带、烧录在字幕�
   盖住，要么超出 TikTok Drama Center 70% 宽度的要求。→ [安全区指南](docs/subtitle-safe-area.md)（英文）
 - **干净母版**必须和字幕版是同一个剪辑。→ [干净母版](docs/clean-master.md)（英文）
 - **版权卫生**：不用大厂牌音乐，只用可免费商用字体。→ [版权自查清单](docs/zh/music-font-rights-checklist.md)
-- **上传前质检**：片中黑屏、字幕和台词时间轴对不上、有声无字幕、疑似错别字；可选用你自己的视觉模型（或本地模型）
+- **TikTok Drama Center 打回**：某一条边上的暗带（黑边，代码 4），以及默认拿第 0 帧当分集封面。
+  `--target tiktok-dc` 会把四边提亮，并在每集开头加 1 秒封面静帧。→ [Drama Center 一节](docs/zh/tiktok-drama-center-delivery-package.md)
+- **上传前质检**：片中黑屏、边缘暗带、字幕和台词时间轴对不上、有声无字幕、疑似错别字；可选用你自己的视觉模型（或本地模型）
   查 AI 画面瑕疵（手、脸、换脸、乱码）和内容合规风险。免费、本地、不用注册；不主动开启就不联网。不覆盖口型同步。
   → [本地质检指南](docs/zh/short-drama-qc-local.md)
 

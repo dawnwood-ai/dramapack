@@ -21,6 +21,7 @@ pass `--vlm` **and** configure an endpoint (which can itself be a local model).
 | Check | How | Grades |
 |---|---|---|
 | Black frames | ffmpeg `blackdetect` (runs in the same decode as shot detection) | mid-episode black >= 0.5 s red, shorter mid black yellow; head/tail black <= 1 s green (a fade), longer yellow |
+| Dark edge bands ("black bars") | mean luma of a 20 px band (at 1080 wide) and the outer 2 px line on each side, 5 samples/s, same decode | longest run with one side darker than 12 (0-255): red > 3.5 s (TikTok Drama Center rejects it, code 4), yellow > 2 s. `package --target tiktok-dc` lifts the edges |
 | Subtitle timing | SRT cues vs. whisper speech segments: median start offset (`sub_drift`), 90th-percentile offset (`sub_offset_p90`) | drift green <= 0.3 s, red > 0.8 s; p90 green <= 0.5 s, red > 1.0 s |
 | Cue with no speech | `sub_orphan_share` - a line cut from the edit but not the SRT. `[SFX]` / `(music)` cues are exempt | green <= 5% of cues, red > 20% |
 | Speech with no cue | `sub_uncovered_s` - seconds of dialogue nobody subtitled | green <= 1.5 s, red > 4 s |
@@ -52,7 +53,8 @@ report. Both approaches are useful; they differ in where the work happens:
 | Subtitle typos | partial: same-language subtitles only, yellow hints | yes |
 | Subtitle format / line-splitting rules | no | yes |
 | Black frames | yes | yes |
-| Black bars, dropped frames, colour consistency, watermarks | no (end-of-file freeze only) | yes |
+| Black bars | yes: dark edge bands per side (`edge_dark`) | yes |
+| Dropped frames, colour consistency, watermarks | no (end-of-file freeze only) | yes |
 | Loudness | yes: -14 LUFS measurement, mean volume, splice-seam jumps | audio checks (volume stability, mono) |
 | AI visual defects (hands, faces, identity drift, garbled text) | with your own VLM (`--vlm`) | garbled on-screen text, AI labels |
 | Content compliance flags | with your own VLM (`--vlm`) | yes |

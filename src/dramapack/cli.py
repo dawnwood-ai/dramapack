@@ -16,6 +16,7 @@ import sys
 
 from . import api
 from . import master as M
+from . import package as PK
 from .provenance import PROVENANCE, footer_line
 
 EXIT_OK, EXIT_RED, EXIT_USAGE, EXIT_FAIL = 0, 1, 2, 3
@@ -48,11 +49,16 @@ def _cmd_package(a) -> int:
                             music=a.music, masters_ready=a.masters_ready, episodes=eps,
                             platform_pairs=a.platform_pairs, clean=not a.no_clean,
                             covers=not a.no_covers, timeline=not a.no_timeline,
-                            keep_work=a.keep_work)
+                            keep_work=a.keep_work, target=a.target,
+                            edge_lift=not a.no_edge_lift, cover_head=not a.no_cover_head)
 
     def human(r):
         print(f"\n{len(r['episodes'])} episodes -> {r['output_dir']}  [{r['status']}]")
         print(f"rights check: {r['rights_status']}")
+        if r.get("dc_finish"):
+            d = r["dc_finish"]
+            print(f"tiktok-dc finishing: edge lift {'on' if d['edge_lift'] else 'off'}, "
+                  f"cover head {d['cover_head_s']:g} s")
         for g in r["gaps"]:
             print(f"  gap: {g}")
         for n in r["notes"]:
@@ -161,6 +167,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-clean", action="store_true")
     p.add_argument("--no-covers", action="store_true")
     p.add_argument("--no-timeline", action="store_true")
+    p.add_argument("--target", choices=PK.TARGETS,
+                   help="delivery target (default: show.json \"target\", else generic); "
+                        "tiktok-dc adds edge lift + a 1 s cover head")
+    p.add_argument("--no-edge-lift", action="store_true",
+                   help="tiktok-dc: do not lift dark frame edges")
+    p.add_argument("--no-cover-head", action="store_true",
+                   help="tiktok-dc: do not prepend the 1 s cover still")
     p.add_argument("--keep-work", action="store_true", help="keep the _work scratch folder")
     p.add_argument("--strict", action="store_true",
                    help="exit 1 when the pack has any gap (red results always exit 1)")

@@ -33,7 +33,10 @@ wrong for every short-drama studio:
   → [clean master guide](docs/clean-master.md)
 - **Rights hygiene**: no major-label music, commercial-free fonts only.
   → [rights checklist](docs/music-font-rights-checklist.md)
-- **QC before upload**: black frames mid-episode, subtitles that drift from the speech,
+- **TikTok Drama Center rejections**: a dark band along one edge (black bars, code 4) and
+  frame 0 as the default episode cover. `--target tiktok-dc` lifts the edges and opens
+  every episode on a 1 s cover still. → [Drama Center section](docs/tiktok-drama-center-delivery-package.md#tiktok-drama-center-what---target-tiktok-dc-adds)
+- **QC before upload**: black frames mid-episode, dark edge bands, subtitles that drift from the speech,
   speech nobody subtitled, likely subtitle typos; optionally AI visual defects (hands,
   faces, identity drift, garbled text) and content-policy flags with your own vision model
   or a local one. Free, local, no account; no network calls unless you opt in. Lip-sync is

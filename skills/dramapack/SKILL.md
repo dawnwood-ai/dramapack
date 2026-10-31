@@ -26,13 +26,15 @@ If neither is available: `pip install dramapack`
 3. **Build.** `dramapack package INPUT OUT --title "..." --studio "..." --json`. Add
    `--bed tension|warm|suspense|dread|hope` if the episodes have no continuous score (it
    covers splice seams and ducks under dialogue); add `--platform-pairs` if the platform
-   wants 1-3 minute episodes.
+   wants 1-3 minute episodes; add `--target tiktok-dc` for TikTok Drama Center (lifts
+   dark frame edges, which it rejects as black bars, and opens each episode on a 1 s
+   cover still because its default episode cover is frame 0).
 4. **Check the result.** `status` red means do not ship: read `gaps` (e.g. "different
    edit, do not ship") and `rights_status`. Notes like "cover generated from a video frame"
    mean real key art is missing.
 5. **Audit.** For each episode: `dramapack audit OUT/episodes/NN.mp4 --cut INPUT/NN.mp4
    --json`. Report red metrics (e.g. duration under 60 s fails TikTok Creator Rewards,
-   mid-episode black frames, subtitles drifting from the speech). Subtitle alignment
+   mid-episode black frames, dark edge bands, subtitles drifting from the speech). Subtitle alignment
    needs `pip install "dramapack[speech]"`; it uses the same-name `.srt` next to the
    master. Only add `--vlm` (MCP `vlm: true`) if the user has set `DRAMAPACK_VLM_*` and
    agrees to send sampled frames to that endpoint; otherwise it is skipped. Treat VLM
